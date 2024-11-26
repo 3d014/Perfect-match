@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">CoupleSwipe</string>
+    <string name="login">Login</string>
+    <string name="registration">Registration</string>
+</resources>
