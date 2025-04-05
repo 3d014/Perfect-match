@@ -1,4 +1,4 @@
-package com.example.coupleswipe
+package com.example.coupleswipe.activity
 
 import android.content.Intent
 import android.os.Bundle
@@ -6,10 +6,11 @@ import android.util.Patterns
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.example.coupleswipe.R
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth
 
-class Registration : AppCompatActivity() {
+class RegistrationActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var emailEditText: TextInputEditText
@@ -77,7 +78,7 @@ class Registration : AppCompatActivity() {
 
     private fun redirectToLogin() {
         // Redirect user to login activity
-        startActivity(Intent(this, Login::class.java))
+        startActivity(Intent(this, LoginActivity::class.java))
         finish()
     }
 
