@@ -1,4 +1,4 @@
-package com.example.coupleswipe
+package com.example.coupleswipe.activity
 
 
 import android.content.Intent
@@ -8,10 +8,11 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.example.coupleswipe.R
 import com.google.android.material.textfield.TextInputEditText
 import com.google.firebase.auth.FirebaseAuth
 
-class Login : AppCompatActivity() {
+class LoginActivity : AppCompatActivity() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var emailEditText: TextInputEditText
@@ -33,7 +34,7 @@ class Login : AppCompatActivity() {
 
         // Handle register navigation
         registerTextView.setOnClickListener {
-            val intent = Intent(this, Registration::class.java)
+            val intent = Intent(this, RegistrationActivity::class.java)
             startActivity(intent)
         }
 

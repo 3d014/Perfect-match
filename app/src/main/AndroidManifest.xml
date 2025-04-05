@@ -15,17 +15,17 @@
         android:theme="@style/Theme.CoupleSwipe"
         tools:targetApi="31">
         <activity
-            android:name=".HomeActivity"
+            android:name=".activity.HomeActivity"
             android:exported="false" />
         <activity
-            android:name=".SwipeActivity"
+            android:name=".activity.SwipeActivity"
             android:exported="false" />
         <activity
-            android:name=".Registration"
+            android:name=".activity.RegistrationActivity"
             android:exported="false"
             android:theme="@style/Theme.Material3.Light.NoActionBar" />
         <activity
-            android:name=".Login"
+            android:name=".activity.LoginActivity"
             android:exported="true"
             android:theme="@style/Theme.Material3.Light.NoActionBar">
             <intent-filter>
@@ -35,7 +35,7 @@
             </intent-filter>
         </activity>
         <activity
-            android:name=".MainActivity"
+            android:name=".activity.MainActivity"
             android:exported="true" />
     </application>
 
