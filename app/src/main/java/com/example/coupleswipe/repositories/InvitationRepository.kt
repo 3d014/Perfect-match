@@ -3,7 +3,9 @@ package com.example.coupleswipe.repository
 import android.util.Log
 import com.example.coupleswipe.fragments.FilterSelection
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import java.util.UUID
 
 class InvitationRepository {
@@ -11,6 +13,31 @@ class InvitationRepository {
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
+    // Add this new function for real-time status listening
+    fun listenForStatusChanges(
+        invitationId: String,
+        onStatusChanged: (String) -> Unit, // Callback when status changes
+        onError: (Exception) -> Unit
+    ): ListenerRegistration {
+        return db.collection("invitations")
+            .document(invitationId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError(error)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && snapshot.exists()) {
+                    val newStatus = snapshot.getString("status") ?: "pending"
+                    onStatusChanged(newStatus)
+                    Log.d("InvitationRepository", "Status changed to: $newStatus")
+                } else {
+                    onError(Exception("Invitation document not found"))
+                }
+            }
+    }
+
+    // Rest of your existing functions remain the same
     fun createInvitation(
         categoryName: String,
         teammateEmail: String,
@@ -19,19 +46,16 @@ class InvitationRepository {
         onError: (Exception) -> Unit
     ) {
         try {
-            // Get current user ID
             val currentUserEmail = auth.currentUser?.email ?: run {
                 onError(Exception("User not authenticated"))
                 return
             }
 
-            // Convert filters to a map format for storage
             val filterData = mutableMapOf<String, Any>()
             filters.forEach { filter ->
                 filterData[filter.filterName] = filter.selectedValues
             }
 
-            // Create invitation document
             val invitationId = UUID.randomUUID().toString()
             val invitationData = hashMapOf(
                 "id" to invitationId,
@@ -43,7 +67,6 @@ class InvitationRepository {
                 "createdAt" to System.currentTimeMillis()
             )
 
-            // Save to Firestore
             db.collection("invitations")
                 .document(invitationId)
                 .set(invitationData)
