@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.coupleswipe"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -54,5 +54,10 @@ dependencies {
     implementation("com.github.bumptech.glide:glide:4.16.0")
     kapt("com.github.bumptech.glide:compiler:4.16.0")
     implementation("io.coil-kt:coil:2.4.0")
+    implementation ("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
+    implementation ("androidx.lifecycle:lifecycle-livedata-ktx:2.8.7")
+    implementation ("androidx.activity:activity-ktx:1.10.1")
+    implementation ("androidx.fragment:fragment-ktx:1.8.6")
+
 
 }

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -33,7 +34,7 @@ class HomeActivity : AppCompatActivity() {
 
         categoryArrayList = arrayListOf()
         categoryAdapter = CategoryAdapter(categoryArrayList) { category ->
-            openSwipeScreen(category)
+            openNewGameScreen(category)
         }
         recyclerView.adapter = categoryAdapter
 
@@ -66,10 +67,16 @@ class HomeActivity : AppCompatActivity() {
     }
 
 
-    private fun openSwipeScreen(category: Category) {
-        val intent = Intent(this, SwipeActivity::class.java).apply {
-            putExtra("CATEGORY_ID", category.id)
-            putExtra("CATEGORY_NAME", category.name)
+    private fun openNewGameScreen(category: Category) {
+        if (!category.isValid()) {
+            Log.e("HomeActivity", "Invalid category - missing ID or name")
+            Toast.makeText(this, "Invalid category selected", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val intent = Intent(this, NewGame::class.java).apply {
+            putExtra("CATEGORY_NAME", category.name!!)
+            Toast.makeText(this@HomeActivity,category.name.toString(),Toast.LENGTH_SHORT).show()
         }
         startActivity(intent)
     }
