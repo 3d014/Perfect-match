@@ -1,107 +1,124 @@
-package com.example.coupleswipe.repositories
+package com.example.coupleswipe.repository
 
-import com.google.firebase.firestore.FieldValue
+import android.util.Log
+import com.example.coupleswipe.fragments.FilterSelection
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.ktx.Firebase
-import kotlinx.coroutines.tasks.await
-import java.util.Date
-import javax.inject.Inject
+import com.google.firebase.firestore.ListenerRegistration
+import java.util.UUID
 
-class InvitationRepository @Inject constructor(
-    private val firestore: FirebaseFirestore = Firebase.firestore
-) {
+class InvitationRepository {
 
-    suspend fun generateInvitation(
-        senderId: String,
-        categoryId: String
-    ): Result<String> {
-        return try {
-            val invitationRef = firestore.collection("invitations").document()
-            val invitationData = hashMapOf(
-                "senderId" to senderId,
-                "categoryId" to categoryId,
-                "status" to "pending",
-                "createdAt" to FieldValue.serverTimestamp()
-            )
+    private val db = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
 
-            invitationRef.set(invitationData).await()
-            Result.Success(invitationRef.id)
-        } catch (e: Exception) {
-            Result.Error(e)
-        }
-    }
-
-    suspend fun acceptInvitation(
+    // Add this new function for real-time status listening
+    fun listenForStatusChanges(
         invitationId: String,
-        receiverId: String
-    ): Result<Unit> {
-        return try {
-            firestore.runTransaction { transaction ->
-                val invitationRef = firestore.collection("invitations").document(invitationId)
-                val snapshot = transaction.get(invitationRef)
-
-                if (!snapshot.exists()) {
-                    throw Exception("Invitation not found")
+        onStatusChanged: (String) -> Unit, // Callback when status changes
+        onError: (Exception) -> Unit
+    ): ListenerRegistration {
+        return db.collection("invitations")
+            .document(invitationId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError(error)
+                    return@addSnapshotListener
                 }
 
-                when (snapshot.getString("status")) {
-                    "accepted" -> throw Exception("Invitation already accepted")
-                    "expired" -> throw Exception("Invitation has expired")
-                    "pending" -> {
-                        transaction.update(
-                            invitationRef,
-                            mapOf(
-                                "receiverId" to receiverId,
-                                "status" to "accepted",
-                                "acceptedAt" to FieldValue.serverTimestamp()
-                            )
-                        )
-                    }
-                    else -> throw Exception("Invalid invitation status")
+                if (snapshot != null && snapshot.exists()) {
+                    val newStatus = snapshot.getString("status") ?: "pending"
+                    onStatusChanged(newStatus)
+                    Log.d("InvitationRepository", "Status changed to: $newStatus")
+                } else {
+                    onError(Exception("Invitation document not found"))
                 }
-            }.await()
-            Result.Success(Unit)
-        } catch (e: Exception) {
-            Result.Error(e)
-        }
+            }
     }
 
-    suspend fun getInvitationDetails(invitationId: String): Result<InvitationDetails> {
-        return try {
-            val snapshot = firestore.collection("invitations")
-                .document(invitationId)
-                .get()
-                .await()
-
-            if (!snapshot.exists()) {
-                return Result.Error(Exception("Invitation not found"))
+    // Rest of your existing functions remain the same
+    fun createInvitation(
+        categoryName: String,
+        teammateEmail: String,
+        filters: List<FilterSelection>,
+        onSuccess: (String) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        try {
+            val currentUserEmail = auth.currentUser?.email ?: run {
+                onError(Exception("User not authenticated"))
+                return
             }
 
-            Result.Success(
-                InvitationDetails(
-                    senderId = snapshot.getString("senderId") ?: "",
-                    categoryId = snapshot.getString("categoryId") ?: "",
-                    status = snapshot.getString("status") ?: "pending",
-                    createdAt = snapshot.getDate("createdAt"),
-                    acceptedAt = snapshot.getDate("acceptedAt")
-                )
+            val filterData = mutableMapOf<String, Any>()
+            filters.forEach { filter ->
+                filterData[filter.filterName] = filter.selectedValues
+            }
+
+            val invitationId = UUID.randomUUID().toString()
+            val invitationData = hashMapOf(
+                "id" to invitationId,
+                "categoryName" to categoryName,
+                "inviterEmail" to currentUserEmail,
+                "inviteeEmail" to teammateEmail,
+                "filters" to filterData,
+                "status" to "pending",
+                "createdAt" to System.currentTimeMillis()
             )
+
+            db.collection("invitations")
+                .document(invitationId)
+                .set(invitationData)
+                .addOnSuccessListener {
+                    Log.d("InvitationRepository", "Invitation created successfully")
+                    onSuccess(invitationId)
+                }
+                .addOnFailureListener { e ->
+                    Log.e("InvitationRepository", "Failed to create invitation", e)
+                    onError(e)
+                }
+
         } catch (e: Exception) {
-            Result.Error(e)
+            Log.e("InvitationRepository", "Error creating invitation", e)
+            onError(e)
         }
     }
 
-    data class InvitationDetails(
-        val senderId: String,
-        val categoryId: String,
-        val status: String,
-        val createdAt: Date?,
-        val acceptedAt: Date?
-    )
-}
+    fun getInvitation(
+        invitationId: String,
+        onSuccess: (Map<String, Any>) -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        db.collection("invitations")
+            .document(invitationId)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document != null && document.exists()) {
+                    onSuccess(document.data as Map<String, Any>)
+                } else {
+                    onError(Exception("Invitation not found"))
+                }
+            }
+            .addOnFailureListener { e ->
+                onError(e)
+            }
+    }
 
-sealed class Result<out T> {
-    data class Success<out T>(val data: T) : Result<T>()
-    data class Error(val exception: Exception) : Result<Nothing>()
+    fun updateInvitationStatus(
+        invitationId: String,
+        status: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        db.collection("invitations")
+            .document(invitationId)
+            .update("status", status)
+            .addOnSuccessListener {
+                onSuccess()
+            }
+            .addOnFailureListener { e ->
+                onError(e)
+            }
+    }
 }
