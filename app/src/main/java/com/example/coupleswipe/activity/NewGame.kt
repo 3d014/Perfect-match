@@ -1,12 +1,12 @@
 package com.example.coupleswipe.activity
 
+
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
 import com.example.coupleswipe.R
 import com.example.coupleswipe.fragments.MoviesFragment
 import com.example.coupleswipe.repository.InvitationRepository
@@ -14,7 +14,7 @@ import com.example.coupleswipe.viewModels.MoviesFilterViewModel
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 
-class NewGame : AppCompatActivity() {
+class NewGame : BaseActivity() {
 
     private lateinit var db: FirebaseFirestore
     private val moviesFilterViewModel: MoviesFilterViewModel by viewModels()
