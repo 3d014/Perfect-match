@@ -1,23 +1,24 @@
 package com.example.coupleswipe.activity
 
+
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.coupleswipe.R
 import com.example.coupleswipe.adapter.CategoryAdapter
 import com.example.coupleswipe.model.Category
+import com.example.coupleswipe.services.InvitationListenerService
 import com.google.firebase.firestore.DocumentChange
 import com.google.firebase.firestore.EventListener
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.QuerySnapshot
 
-class HomeActivity : AppCompatActivity() {
+class HomeActivity : BaseActivity() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var categoryAdapter: CategoryAdapter
@@ -27,7 +28,7 @@ class HomeActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
-
+        startService(Intent(this, InvitationListenerService::class.java))
         recyclerView = findViewById(R.id.recycler_view)
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerView.setHasFixedSize(true)
