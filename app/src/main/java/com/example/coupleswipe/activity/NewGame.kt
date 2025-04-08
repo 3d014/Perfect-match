@@ -1,6 +1,7 @@
 package com.example.coupleswipe.activity
 
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
@@ -12,13 +13,16 @@ import com.example.coupleswipe.R
 import com.example.coupleswipe.api.TMDBApiClient
 import com.example.coupleswipe.fragments.FilterSelection
 import com.example.coupleswipe.fragments.MoviesFragment
+import com.example.coupleswipe.model.Movie
 import com.example.coupleswipe.repository.InvitationRepository
 import com.example.coupleswipe.utils.convertFiltersToTMDBParams
 import com.example.coupleswipe.utils.genreMap
 import com.example.coupleswipe.viewModels.MoviesFilterViewModel
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class NewGame : BaseActivity() {
 
@@ -28,6 +32,7 @@ class NewGame : BaseActivity() {
     private lateinit var inviteField: EditText
     private val invitationRepository = InvitationRepository()
     private var statusListener: ListenerRegistration? = null
+    private val auth = FirebaseAuth.getInstance()
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,9 +93,8 @@ class NewGame : BaseActivity() {
                 runOnUiThread {
                     when (newStatus) {
                         "accepted" -> {
-                            Toast.makeText(this, "Invitation accepted! Starting game...", Toast.LENGTH_SHORT).show()
-                            // startActivity(Intent(this, GameActivity::class.java))
-                            // finish()
+                            Toast.makeText(this, "Invitation accepted! Fetching movies...", Toast.LENGTH_SHORT).show()
+                            fetchAndStoreMovies(invitationId)
                         }
                         "declined" -> {
                             Toast.makeText(this, "Invitation was declined", Toast.LENGTH_SHORT).show()
@@ -133,4 +137,112 @@ class NewGame : BaseActivity() {
         statusListener?.remove()
     }
 
+    private fun fetchAndStoreMovies(invitationId: String) {
+        // Fetch invitation details to get filters
+        invitationRepository.getInvitation(
+            invitationId = invitationId,
+            onSuccess = { invitationData ->
+                val filters = invitationData["filters"] as? Map<String, Any> ?: emptyMap()
+                val categoryName = invitationData["categoryName"] as? String ?: "movies"
+                val inviteeEmail = invitationData["inviteeEmail"] as? String ?: ""
+
+                // Convert filters to TMDB parameters
+                val tmdbParams = convertFiltersToTMDBParams(filtersToFilterSelection(filters))
+
+                // Fetch movies from TMDB API
+                lifecycleScope.launch {
+                    try {
+                        val response = TMDBApiClient.tmdbApi.getFilteredMovies(
+                            genres = tmdbParams["with_genres"],
+                            minDate = tmdbParams["primary_release_date.gte"],
+                            maxDate = tmdbParams["primary_release_date.lte"],
+                            minRating = tmdbParams["vote_average.gte"]
+                        )
+                        if (response.isSuccessful) {
+                            val movies = response.body()?.results ?: emptyList()
+                            storeMoviesAndCreateGameSession(movies, invitationId, inviteeEmail, categoryName)
+                        } else {
+                            Toast.makeText(this@NewGame, "Failed to fetch movies", Toast.LENGTH_SHORT).show()
+                            Log.e("NewGame", "TMDB API error: ${response.code()}")
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(this@NewGame, "Error fetching movies: ${e.message}", Toast.LENGTH_SHORT).show()
+                        Log.e("NewGame", "TMDB fetch error", e)
+                    }
+                }
+            },
+            onError = { error ->
+                Toast.makeText(this, "Error fetching invitation: ${error.message}", Toast.LENGTH_SHORT).show()
+                Log.e("NewGame", "Invitation fetch error", error)
+            }
+        )
+    }
+    private fun filtersToFilterSelection(filters: Map<String, Any>): List<FilterSelection> {
+        return filters.map { (filterName, selectedValues) ->
+            FilterSelection(filterName, selectedValues as List<Any>)
+        }
+    }
+
+    private fun storeMoviesAndCreateGameSession(
+        movies: List<Movie>,
+        invitationId: String,
+        inviteeEmail: String,
+        categoryName: String
+    ) {
+        val movieListId = UUID.randomUUID().toString()
+        val inviterEmail = auth.currentUser?.email
+
+        // Store movies in Firestore
+        val moviesData = movies.map { movie ->
+            hashMapOf(
+                "id" to movie.id,
+                "title" to movie.title,
+                "posterPath" to movie.posterPath,
+                "releaseDate" to movie.releaseDate,
+                "rating" to movie.rating,
+                "description" to movie.description
+            )
+        }
+
+        db.collection("movies")
+            .document(movieListId)
+            .set(hashMapOf("movies" to moviesData))
+            .addOnSuccessListener {
+                Log.d("NewGame", "Movies stored successfully with ID: $movieListId")
+
+                // Create game session
+                val gameSessionId = UUID.randomUUID().toString()
+                val gameSessionData = hashMapOf(
+                    "inviterEmail" to inviterEmail,
+                    "inviteeEmail" to inviteeEmail,
+                    "movieListId" to movieListId,
+                    "categoryName" to categoryName,
+                    "status" to "active",
+                    "createdAt" to System.currentTimeMillis()
+                )
+
+                db.collection("gameSessions")
+                    .document(gameSessionId)
+                    .set(gameSessionData)
+                    .addOnSuccessListener {
+                        Log.d("NewGame", "Game session created with ID: $gameSessionId")
+                        Toast.makeText(this, "Game session created! Starting game...", Toast.LENGTH_SHORT).show()
+
+                        // Start SwipeGameActivity for inviter (Step 4 placeholder)
+                        val intent = Intent(this, SwipeActivity::class.java).apply {
+                            putExtra("GAME_SESSION_ID", gameSessionId)
+                        }
+                        startActivity(intent)
+                        finish()
+                    }
+                    .addOnFailureListener { e ->
+                        Toast.makeText(this, "Failed to create game session: ${e.message}", Toast.LENGTH_SHORT).show()
+                        Log.e("NewGame", "Game session creation error", e)
+                    }
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Failed to store movies: ${e.message}", Toast.LENGTH_SHORT).show()
+                Log.e("NewGame", "Movies storage error", e)
+            }
+    }
 }
