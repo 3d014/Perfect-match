@@ -94,7 +94,7 @@ abstract class BaseActivity : AppCompatActivity() {
             "Game session started by $inviterEmail for $categoryName!",
             Toast.LENGTH_SHORT
         ).show()
-        val intent = Intent(this, SwipeActivity::class.java).apply {
+        val intent = Intent(this, SwipeGameActivity::class.java).apply {
             putExtra("GAME_SESSION_ID", gameSessionId)
         }
         startActivity(intent)

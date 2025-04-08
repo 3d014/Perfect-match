@@ -21,7 +21,7 @@
             android:name=".activity.HomeActivity"
             android:exported="false" />
         <activity
-            android:name=".activity.SwipeActivity"
+            android:name=".activity.SwipeGameActivity"
             android:exported="false" />
         <activity
             android:name=".activity.RegistrationActivity"
