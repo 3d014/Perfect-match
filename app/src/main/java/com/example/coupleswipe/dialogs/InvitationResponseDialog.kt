@@ -21,18 +21,34 @@ class InvitationResponseDialog : DialogFragment() {
     private val invitationRepository = InvitationRepository()
 
     companion object {
+        private const val ARG_INVITATION_ID = "invitationId"
+        private const val ARG_CATEGORY_NAME = "categoryName"
+        private const val ARG_INVITER_EMAIL = "inviterEmail"
+
         fun newInstance(
             invitationId: String,
             categoryName: String,
             inviterEmail: String,
             callback: (Boolean) -> Unit
         ): InvitationResponseDialog {
-            return InvitationResponseDialog().apply {
-                this.invitationId = invitationId
-                this.categoryName = categoryName
-                this.inviterEmail = inviterEmail
-                this.onResponseCallback = callback
+            val dialog = InvitationResponseDialog()
+            dialog.arguments = Bundle().apply {
+                putString(ARG_INVITATION_ID, invitationId)
+                putString(ARG_CATEGORY_NAME, categoryName)
+                putString(ARG_INVITER_EMAIL, inviterEmail)
             }
+            dialog.onResponseCallback = callback
+            return dialog
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        arguments?.let {
+            invitationId = it.getString(ARG_INVITATION_ID) ?: ""
+            categoryName = it.getString(ARG_CATEGORY_NAME) ?: ""
+            inviterEmail = it.getString(ARG_INVITER_EMAIL) ?: ""
         }
     }
 
@@ -61,8 +77,7 @@ class InvitationResponseDialog : DialogFragment() {
                     onResponseCallback?.invoke(true)
                     dismiss()
                 },
-                onError = { exception ->
-                    // Show error message
+                onError = { _ ->
                     dismiss()
                 }
             )
@@ -76,8 +91,7 @@ class InvitationResponseDialog : DialogFragment() {
                     onResponseCallback?.invoke(false)
                     dismiss()
                 },
-                onError = { exception ->
-                    // Show error message
+                onError = { _ ->
                     dismiss()
                 }
             )

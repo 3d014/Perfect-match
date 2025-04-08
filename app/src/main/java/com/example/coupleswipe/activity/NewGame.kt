@@ -7,12 +7,18 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.activity.viewModels
+import androidx.lifecycle.lifecycleScope
 import com.example.coupleswipe.R
+import com.example.coupleswipe.api.TMDBApiClient
+import com.example.coupleswipe.fragments.FilterSelection
 import com.example.coupleswipe.fragments.MoviesFragment
 import com.example.coupleswipe.repository.InvitationRepository
+import com.example.coupleswipe.utils.convertFiltersToTMDBParams
+import com.example.coupleswipe.utils.genreMap
 import com.example.coupleswipe.viewModels.MoviesFilterViewModel
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.launch
 
 class NewGame : BaseActivity() {
 
@@ -23,10 +29,10 @@ class NewGame : BaseActivity() {
     private val invitationRepository = InvitationRepository()
     private var statusListener: ListenerRegistration? = null
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_new_game)
-
         db = FirebaseFirestore.getInstance()
         val categoryName = intent.getStringExtra("CATEGORY_NAME") ?: ""
 
@@ -47,6 +53,7 @@ class NewGame : BaseActivity() {
                 Toast.makeText(this, "Please enter a valid email", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+
 
             // Clear any existing listener
             statusListener?.remove()
@@ -125,4 +132,5 @@ class NewGame : BaseActivity() {
         // Clean up the listener when the activity is destroyed
         statusListener?.remove()
     }
+
 }
