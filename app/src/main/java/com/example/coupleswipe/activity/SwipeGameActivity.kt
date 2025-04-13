@@ -21,6 +21,7 @@ import com.yuyakaido.android.cardstackview.CardStackView
 import com.yuyakaido.android.cardstackview.Direction
 import android.app.Dialog
 import android.widget.Button
+import com.google.firebase.firestore.ListenerRegistration
 
 data class Movie(
     val id: String = "",
@@ -28,16 +29,24 @@ data class Movie(
     val imageUrl: String = ""
 )
 
+data class SwipeData(
+    val userEmail: String = "",
+    val movieId: String = "",
+    val liked: Boolean = false
+)
+
 class SwipeGameActivity : AppCompatActivity() {
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
     private lateinit var cardStackView: CardStackView
     private lateinit var adapter: MovieCardAdapter
-    private lateinit var layoutManager: CardStackLayoutManager // Moved to class level
+    private lateinit var layoutManager: CardStackLayoutManager
     private var movieListId: String = ""
     private var gameSessionId: String = ""
     private val movies = mutableListOf<Movie>()
     private val userLikes = mutableMapOf<String, Boolean>() // movieId -> liked
+    private lateinit var sessionListener: ListenerRegistration
+    private lateinit var matchSelectionListener: ListenerRegistration
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,16 +60,17 @@ class SwipeGameActivity : AppCompatActivity() {
             return
         }
 
-        // Inicijalizacija CardStackView-a
+        // Initialize CardStackView
         layoutManager = CardStackLayoutManager(this, object : CardStackListener {
             override fun onCardDragging(direction: Direction?, ratio: Float) {}
             override fun onCardSwiped(direction: Direction?) {
-                val position = layoutManager.topPosition - 1 // Now accessible
+                val position = layoutManager.topPosition - 1
                 val movie = movies.getOrNull(position) ?: return
                 val liked = direction == Direction.Right
                 userLikes[movie.id] = liked
                 saveUserSwipe(movie.id, liked)
             }
+
             override fun onCardRewound() {}
             override fun onCardCanceled() {}
             override fun onCardAppeared(view: View?, position: Int) {}
@@ -70,20 +80,19 @@ class SwipeGameActivity : AppCompatActivity() {
                 }
             }
         }).apply {
-            setDirections(listOf(Direction.Left, Direction.Right)) // Samo levo i desno
+            setDirections(listOf(Direction.Left, Direction.Right))
             setCanScrollHorizontal(true)
             setCanScrollVertical(false)
-            setVisibleCount(3) // Broj vidljivih kartica
-            setSwipeThreshold(0.3f) // Prag za svajp
+            setVisibleCount(3)
+            setSwipeThreshold(0.3f)
         }
 
         cardStackView.layoutManager = layoutManager
         adapter = MovieCardAdapter(movies)
         cardStackView.adapter = adapter
 
-        // Učitaj filmove
+        // Load movies
         loadMovies()
-
     }
 
     private fun loadMovies() {
@@ -106,7 +115,11 @@ class SwipeGameActivity : AppCompatActivity() {
                             }
                         }
                         .addOnFailureListener { e ->
-                            Toast.makeText(this, "Error loading movies: ${e.message}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                this,
+                                "Error loading movies: ${e.message}",
+                                Toast.LENGTH_SHORT
+                            ).show()
                             finish()
                         }
                 } else {
@@ -115,7 +128,8 @@ class SwipeGameActivity : AppCompatActivity() {
                 }
             }
             .addOnFailureListener { e ->
-                Toast.makeText(this, "Error loading session: ${e.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Error loading session: ${e.message}", Toast.LENGTH_SHORT)
+                    .show()
                 finish()
             }
     }
@@ -144,26 +158,53 @@ class SwipeGameActivity : AppCompatActivity() {
         db.collection("gameSessions").document(gameSessionId)
             .update("finishedUsers", FieldValue.arrayUnion(userEmail))
             .addOnSuccessListener {
-                checkForMatch()
+                // Set up a listener for when both players finish
+                setupMatchListener()
+                Toast.makeText(this, "Waiting for the other player...", Toast.LENGTH_SHORT).show()
             }
             .addOnFailureListener { e ->
                 Log.e("SwipeGame", "Error updating finished users", e)
             }
     }
 
-    private fun checkForMatch() {
-        db.collection("gameSessions").document(gameSessionId).get()
-            .addOnSuccessListener { document ->
-                val finishedUsers = document.get("finishedUsers") as? List<String> ?: emptyList()
-                val inviterEmail = document.getString("inviterEmail") ?: ""
-                val inviteeEmail = document.getString("inviteeEmail") ?: ""
-                if (finishedUsers.contains(inviterEmail) && finishedUsers.contains(inviteeEmail)) {
-                    findMatchingMovie()
-                } else {
-                    Toast.makeText(this, "Waiting for the other player...", Toast.LENGTH_SHORT).show()
+    private fun setupMatchListener() {
+        // This listener will trigger whenever the game session document changes
+        sessionListener = db.collection("gameSessions").document(gameSessionId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("SwipeGame", "Error listening to game session", error)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && snapshot.exists()) {
+                    val finishedUsers =
+                        snapshot.get("finishedUsers") as? List<String> ?: emptyList()
+                    val inviterEmail = snapshot.getString("inviterEmail") ?: ""
+                    val inviteeEmail = snapshot.getString("inviteeEmail") ?: ""
+
+                    // Check if both users have finished
+                    if (finishedUsers.contains(inviterEmail) && finishedUsers.contains(inviteeEmail)) {
+                        // Remove the listener since we don't need it anymore
+                        sessionListener.remove()
+
+                        // Find matching movies and show dialog
+                        findMatchingMovie(inviterEmail, inviteeEmail)
+                    }
                 }
             }
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Clean up listeners
+        if (::sessionListener.isInitialized) {
+            sessionListener.remove()
+        }
+        if (::matchSelectionListener.isInitialized) {
+            matchSelectionListener.remove()
+        }
+    }
+
     private fun showMatchedMovieDialog(movie: Movie) {
         val dialog = Dialog(this).apply {
             setContentView(R.layout.dialog_matched_movie)
@@ -177,39 +218,62 @@ class SwipeGameActivity : AppCompatActivity() {
 
             findViewById<Button>(R.id.closeButton).setOnClickListener {
                 dismiss()
-                finish() // Zatvori aktivnost nakon što se dialog zatvori
+                finish() // Close activity after dialog closes
             }
         }
 
         dialog.show()
     }
-    private fun findMatchingMovie() {
+
+    private fun findMatchingMovie(inviterEmail: String, inviteeEmail: String) {
         db.collection("gameSessions").document(gameSessionId).collection("swipes")
             .get()
             .addOnSuccessListener { snapshot ->
                 val swipes = snapshot.documents.mapNotNull { it.toObject(SwipeData::class.java) }
-                val inviterLikes = swipes.filter { it.userEmail == auth.currentUser?.email && it.liked }
+                val inviterLikes = swipes.filter { it.userEmail == inviterEmail && it.liked }
                     .map { it.movieId }
-                val inviteeLikes = swipes.filter { it.userEmail != auth.currentUser?.email && it.liked }
+                val inviteeLikes = swipes.filter { it.userEmail == inviteeEmail && it.liked }
                     .map { it.movieId }
                 val commonLikes = inviterLikes.intersect(inviteeLikes.toSet())
 
                 if (commonLikes.isNotEmpty()) {
-                    val matchedMovieId = commonLikes.random()
-                    db.collection("movies").document(movieListId).collection("movieList")
-                        .document(matchedMovieId).get()
-                        .addOnSuccessListener { doc ->
-                            val movie = doc.toObject(Movie::class.java)
-                            if (movie != null) {
-                                showMatchedMovieDialog(movie)
+                    // Check if we already have a selected match
+                    db.collection("gameSessions").document(gameSessionId)
+                        .get()
+                        .addOnSuccessListener { sessionDoc ->
+                            val selectedMatchId = sessionDoc.getString("selectedMatchId")
+
+                            if (selectedMatchId != null) {
+                                // A match has already been selected, use it
+                                loadAndShowMatchedMovie(selectedMatchId)
                             } else {
-                                Toast.makeText(this, "Error loading matched movie", Toast.LENGTH_LONG).show()
-                                finish()
+                                // No match selected yet, check if this device should select it
+                                val currentUserEmail = auth.currentUser?.email
+
+                                if (currentUserEmail == inviterEmail) {
+                                    // This is the inviter's device, select a match
+                                    val matchedMovieId = commonLikes.random()
+
+                                    // Store the selected match in Firestore
+                                    db.collection("gameSessions").document(gameSessionId)
+                                        .update("selectedMatchId", matchedMovieId)
+                                        .addOnSuccessListener {
+                                            loadAndShowMatchedMovie(matchedMovieId)
+                                        }
+                                        .addOnFailureListener { e ->
+                                            Toast.makeText(this, "Error saving match selection", Toast.LENGTH_LONG).show()
+                                            Log.e("SwipeGame", "Error saving match selection", e)
+                                            finish()
+                                        }
+                                } else {
+                                    // This is the invitee's device, wait for the inviter to select
+                                    setupMatchSelectionListener()
+                                }
                             }
                         }
                         .addOnFailureListener { e ->
-                            Toast.makeText(this, "Error loading movie details", Toast.LENGTH_LONG).show()
-                            Log.e("SwipeGame", "Error loading movie", e)
+                            Toast.makeText(this, "Error checking for selected match", Toast.LENGTH_LONG).show()
+                            Log.e("SwipeGame", "Error checking for selected match", e)
                             finish()
                         }
                 } else {
@@ -223,22 +287,60 @@ class SwipeGameActivity : AppCompatActivity() {
                 finish()
             }
     }
+
+    private fun setupMatchSelectionListener() {
+        // Show waiting toast
+        Toast.makeText(this, "Waiting for match selection...", Toast.LENGTH_SHORT).show()
+
+        // Listen for the match selection
+        matchSelectionListener = db.collection("gameSessions").document(gameSessionId)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Log.e("SwipeGame", "Error listening for match selection", error)
+                    return@addSnapshotListener
+                }
+
+                if (snapshot != null && snapshot.exists()) {
+                    val selectedMatchId = snapshot.getString("selectedMatchId")
+                    if (selectedMatchId != null) {
+                        // Match has been selected, remove listener and show match
+                        matchSelectionListener.remove()
+                        loadAndShowMatchedMovie(selectedMatchId)
+                    }
+                }
+            }
+    }
+
+    private fun loadAndShowMatchedMovie(matchedMovieId: String) {
+        db.collection("movies").document(movieListId).collection("movieList")
+            .document(matchedMovieId).get()
+            .addOnSuccessListener { doc ->
+                val movie = doc.toObject(Movie::class.java)
+                if (movie != null) {
+                    showMatchedMovieDialog(movie)
+                } else {
+                    Toast.makeText(this, "Error loading matched movie", Toast.LENGTH_LONG).show()
+                    finish()
+                }
+            }
+            .addOnFailureListener { e ->
+                Toast.makeText(this, "Error loading movie details", Toast.LENGTH_LONG).show()
+                Log.e("SwipeGame", "Error loading movie", e)
+                finish()
+            }
+    }
 }
 
-data class SwipeData(
-    val userEmail: String = "",
-    val movieId: String = "",
-    val liked: Boolean = false
-)
-
-class MovieCardAdapter(private val movies: List<Movie>) : RecyclerView.Adapter<MovieCardAdapter.ViewHolder>() {
+class MovieCardAdapter(private val movies: List<Movie>) :
+    RecyclerView.Adapter<MovieCardAdapter.ViewHolder>() {
     class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val title: TextView = itemView.findViewById(R.id.movie_title)
         val image: ImageView = itemView.findViewById(R.id.movie_image)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_movie_card, parent, false)
+        val view =
+            LayoutInflater.from(parent.context).inflate(R.layout.item_movie_card, parent, false)
         return ViewHolder(view)
     }
 
@@ -246,7 +348,7 @@ class MovieCardAdapter(private val movies: List<Movie>) : RecyclerView.Adapter<M
         val movie = movies[position]
         holder.title.text = movie.title
         holder.image.load(movie.imageUrl) {
-            placeholder(R.drawable.placeholder_image) // Dodaj placeholder sliku u drawable
+            placeholder(R.drawable.placeholder_image)
         }
     }
 
