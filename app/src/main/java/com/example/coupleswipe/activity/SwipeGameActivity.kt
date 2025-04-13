@@ -60,7 +60,6 @@ class SwipeGameActivity : AppCompatActivity() {
             return
         }
 
-        // Initialize CardStackView
         layoutManager = CardStackLayoutManager(this, object : CardStackListener {
             override fun onCardDragging(direction: Direction?, ratio: Float) {}
             override fun onCardSwiped(direction: Direction?) {
@@ -91,7 +90,6 @@ class SwipeGameActivity : AppCompatActivity() {
         adapter = MovieCardAdapter(movies)
         cardStackView.adapter = adapter
 
-        // Load movies
         loadMovies()
     }
 
@@ -158,7 +156,6 @@ class SwipeGameActivity : AppCompatActivity() {
         db.collection("gameSessions").document(gameSessionId)
             .update("finishedUsers", FieldValue.arrayUnion(userEmail))
             .addOnSuccessListener {
-                // Set up a listener for when both players finish
                 setupMatchListener()
                 Toast.makeText(this, "Waiting for the other player...", Toast.LENGTH_SHORT).show()
             }
@@ -168,7 +165,6 @@ class SwipeGameActivity : AppCompatActivity() {
     }
 
     private fun setupMatchListener() {
-        // This listener will trigger whenever the game session document changes
         sessionListener = db.collection("gameSessions").document(gameSessionId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -182,12 +178,9 @@ class SwipeGameActivity : AppCompatActivity() {
                     val inviterEmail = snapshot.getString("inviterEmail") ?: ""
                     val inviteeEmail = snapshot.getString("inviteeEmail") ?: ""
 
-                    // Check if both users have finished
                     if (finishedUsers.contains(inviterEmail) && finishedUsers.contains(inviteeEmail)) {
-                        // Remove the listener since we don't need it anymore
                         sessionListener.remove()
 
-                        // Find matching movies and show dialog
                         findMatchingMovie(inviterEmail, inviteeEmail)
                     }
                 }
@@ -196,7 +189,6 @@ class SwipeGameActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Clean up listeners
         if (::sessionListener.isInitialized) {
             sessionListener.remove()
         }
@@ -218,7 +210,7 @@ class SwipeGameActivity : AppCompatActivity() {
 
             findViewById<Button>(R.id.closeButton).setOnClickListener {
                 dismiss()
-                finish() // Close activity after dialog closes
+                finish()
             }
         }
 

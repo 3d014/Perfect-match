@@ -192,7 +192,6 @@ class NewGame : BaseActivity() {
         val movieListId = UUID.randomUUID().toString()
         val inviterEmail = auth.currentUser?.email
 
-        // Store each movie as a separate document in movieList subcollection
         val batch = db.batch()
         val movieListRef = db.collection("movies").document(movieListId).collection("movieList")
 
@@ -221,7 +220,7 @@ class NewGame : BaseActivity() {
                     "categoryName" to categoryName,
                     "status" to "active",
                     "createdAt" to System.currentTimeMillis(),
-                    "finishedUsers" to listOf<String>() // Initialize empty array
+                    "finishedUsers" to listOf<String>()
                 )
 
                 db.collection("gameSessions")
@@ -231,7 +230,6 @@ class NewGame : BaseActivity() {
                         Log.d("NewGame", "Game session created with ID: $gameSessionId")
                         Toast.makeText(this, "Game session created! Starting game...", Toast.LENGTH_SHORT).show()
 
-                        // Start SwipeGameActivity for inviter
                         val intent = Intent(this, SwipeGameActivity::class.java).apply {
                             putExtra("GAME_SESSION_ID", gameSessionId)
                         }

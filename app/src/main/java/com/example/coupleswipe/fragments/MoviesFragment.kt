@@ -134,12 +134,11 @@ class MoviesFragment : Fragment() {
             setPadding(0, 0, 0, 16)
         }
 
-        // Create range slider
         val rangeSlider = com.google.android.material.slider.RangeSlider(context).apply {
             valueFrom = minValue
             valueTo = maxValue
-            setValues(minValue, maxValue) // Initial values for min and max
-            stepSize = 1f // Set step size if needed
+            setValues(minValue, maxValue)
+            stepSize = 1f
             addOnChangeListener { slider, _, _ ->
                 val values = slider.values
                 val currentMin = values[0]
@@ -153,7 +152,6 @@ class MoviesFragment : Fragment() {
         filtersContainer.addView(rangeText)
         filtersContainer.addView(rangeSlider)
 
-        // Set initial values
         filterViewModel.updateFilters(filterName, listOf(minValue.toInt(), maxValue.toInt()))
     }
 

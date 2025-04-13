@@ -6,7 +6,6 @@ data class Category(
     val description: String? = null
 
 ) {
-    // Helper function to check if valid
     fun isValid(): Boolean {
         return !name.isNullOrEmpty()
     }

@@ -11,7 +11,6 @@ data class Movie(
     @SerializedName("overview") val description: String?,
 )
 
-// MovieResponse.kt
 data class MovieResponse(
     val results: List<Movie>
 )
