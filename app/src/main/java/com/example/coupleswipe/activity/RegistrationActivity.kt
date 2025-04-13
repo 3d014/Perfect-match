@@ -21,10 +21,8 @@ class RegistrationActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_registration)
 
-        // Initialize Firebase Auth
         auth = FirebaseAuth.getInstance()
 
-        // Link UI components
         emailEditText = findViewById(R.id.email_id)
         passwordEditText = findViewById(R.id.password_id)
         registerButton = findViewById(R.id.registerButton)
@@ -77,7 +75,6 @@ class RegistrationActivity : AppCompatActivity() {
     }
 
     private fun redirectToLogin() {
-        // Redirect user to login activity
         startActivity(Intent(this, LoginActivity::class.java))
         finish()
     }

@@ -192,23 +192,24 @@ class NewGame : BaseActivity() {
         val movieListId = UUID.randomUUID().toString()
         val inviterEmail = auth.currentUser?.email
 
-        // Store movies in Firestore
-        val moviesData = movies.map { movie ->
-            hashMapOf(
-                "id" to movie.id,
+        val batch = db.batch()
+        val movieListRef = db.collection("movies").document(movieListId).collection("movieList")
+
+        movies.forEach { movie ->
+            val movieDoc = movieListRef.document(movie.id.toString())
+            batch.set(movieDoc, hashMapOf(
+                "id" to movie.id.toString(),
                 "title" to movie.title,
-                "posterPath" to movie.posterPath,
+                "imageUrl" to "https://image.tmdb.org/t/p/w500${movie.posterPath}",
                 "releaseDate" to movie.releaseDate,
                 "rating" to movie.rating,
                 "description" to movie.description
-            )
+            ))
         }
 
-        db.collection("movies")
-            .document(movieListId)
-            .set(hashMapOf("movies" to moviesData))
+        batch.commit()
             .addOnSuccessListener {
-                Log.d("NewGame", "Movies stored successfully with ID: $movieListId")
+                Log.d("NewGame", "Movies stored successfully in subcollection with ID: $movieListId")
 
                 // Create game session
                 val gameSessionId = UUID.randomUUID().toString()
@@ -218,7 +219,8 @@ class NewGame : BaseActivity() {
                     "movieListId" to movieListId,
                     "categoryName" to categoryName,
                     "status" to "active",
-                    "createdAt" to System.currentTimeMillis()
+                    "createdAt" to System.currentTimeMillis(),
+                    "finishedUsers" to listOf<String>()
                 )
 
                 db.collection("gameSessions")
@@ -228,8 +230,7 @@ class NewGame : BaseActivity() {
                         Log.d("NewGame", "Game session created with ID: $gameSessionId")
                         Toast.makeText(this, "Game session created! Starting game...", Toast.LENGTH_SHORT).show()
 
-                        // Start SwipeGameActivity for inviter (Step 4 placeholder)
-                        val intent = Intent(this, SwipeActivity::class.java).apply {
+                        val intent = Intent(this, SwipeGameActivity::class.java).apply {
                             putExtra("GAME_SESSION_ID", gameSessionId)
                         }
                         startActivity(intent)

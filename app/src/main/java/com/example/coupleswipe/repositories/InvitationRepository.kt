@@ -13,7 +13,6 @@ class InvitationRepository {
     private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
     private val EXPIRATION_TIME_MS = 20000L
-    // Add this new function for real-time status listening
     fun listenForStatusChanges(
         invitationId: String,
         onStatusChanged: (String) -> Unit,
@@ -44,7 +43,6 @@ class InvitationRepository {
             }
     }
 
-    // Rest of your existing functions remain the same
     fun createInvitation(
         categoryName: String,
         teammateEmail: String,
@@ -59,13 +57,11 @@ class InvitationRepository {
             }
             val targetEmail = teammateEmail.lowercase()
 
-            // 1. Prevent self-invites
             if (currentUserEmail == targetEmail) {
                 onError(Exception("Cannot send invitation to yourself"))
                 return
             }
 
-            // 2. Check for existing pending invitation
             db.collection("invitations")
                 .whereEqualTo("inviterEmail", currentUserEmail)
                 .whereEqualTo("inviteeEmail", targetEmail)
@@ -77,7 +73,6 @@ class InvitationRepository {
                         return@addOnSuccessListener
                     }
 
-                    // 3. Create new invitation with expiration
                     val filterData = mutableMapOf<String, Any>()
                     filters.forEach { filter ->
                         filterData[filter.filterName] = filter.selectedValues
